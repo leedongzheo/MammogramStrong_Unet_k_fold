@@ -71,22 +71,22 @@ lr_min = 0.0001  # lr_min là learning rate tối thiểu
 DEVICE=torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 PIN_MEMORY = True if str(DEVICE) == "cuda:0" else False
 # DATASET_PATH = args.data
-DATASET_ROOT_5FOLDS = args.data if args.data else "INBREAST_5folds_merge_640"
+DATASET_ROOT_4FOLDS = args.data if args.data else "INBREAST_4folds_merge_640"
 # Mean/Std cho từng Fold (Lưu vào dict để dễ lấy)
 FOLD_STATS = {
-    0: {'mean': [0.2856, 0.2891, 0.2030], 'std': [0.2856, 0.2617, 0.2139]},
-    1: {'mean': [0.2936, 0.2953, 0.2092], 'std': [0.2911, 0.2659, 0.2184]},
-    2: {'mean': [0.2901, 0.2933, 0.2063], 'std': [0.2863, 0.2621, 0.2149]},
-    3: {'mean': [0.2873, 0.2899, 0.2045], 'std': [0.2891, 0.2645, 0.2169]},
-    4: {'mean': [0.2879, 0.2908, 0.2047], 'std': [0.2870, 0.2629, 0.2149]},
+    0: {'mean': [0.2912, 0.2933, 0.2072], 'std': [0.2892, 0.2644, 0.2167]},
+    1: {'mean': [0.2952, 0.2972, 0.2102], 'std': [0.2893, 0.2646, 0.2170]},
+    2: {'mean': [0.2870, 0.2891, 0.2045], 'std': [0.2910, 0.2659, 0.2177]},
+    3: {'mean': [0.2913, 0.2938, 0.2072], 'std': [0.2882, 0.2635, 0.2158]},
+    # 4: {'mean': [0.2879, 0.2908, 0.2047], 'std': [0.2870, 0.2629, 0.2149]},
 }
 # Metadata file map
 FOLD_METADATA = {
-    0: "train_metadata_area_INBREAST_5folds_merge_640_fold0.csv",
-    1: "train_metadata_area_INBREAST_5folds_merge_640_fold1.csv",
-    2: "train_metadata_area_INBREAST_5folds_merge_640_fold2.csv",
-    3: "train_metadata_area_INBREAST_5folds_merge_640_fold3.csv",
-    4: "train_metadata_area_INBREAST_5folds_merge_640_fold4.csv",
+    0: "train_metadata_area_INBREAST_4folds_merge_640_fold0.csv",
+    1: "train_metadata_area_INBREAST_4folds_merge_640_fold1.csv",
+    2: "train_metadata_area_INBREAST_4folds_merge_640_fold2.csv",
+    3: "train_metadata_area_INBREAST_4folds_merge_640_fold3.csv",
+    # 4: "train_metadata_area_INBREAST_5folds_merge_640_fold4.csv",
 }
 
 # TRAIN_PATH = os.path.join(DATASET_PATH, "train")
