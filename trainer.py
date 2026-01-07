@@ -191,7 +191,7 @@ class Trainer:
         start_time = time.time()
         print(f"[INFO] Starting training from epoch {self.start_epoch + 1}...")
         MIN_LR_THRESHOLD = 1e-6  
-        RESET_LR_VALUE = 5e-5
+        RESET_LR_VALUE = 1e-4
         MIN_LR = 1e-6
         MAX_RESETS = 3
         for epoch in range(self.start_epoch, self.num_epochs):
