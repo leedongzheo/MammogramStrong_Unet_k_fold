@@ -117,62 +117,7 @@ def initialize_training_setup(args):
 
     # 5. Trainer
     return model, opt, criterion, scheduler
-class EnsembleModel(nn.Module):
-    def __init__(self, model_class, checkpoint_paths, device='cuda', in_channels=3, num_classes=1):
-        super().__init__()
-        self.models = nn.ModuleList()
-        self.device = device
-        
-        print(f"[ENSEMBLE] Loading {len(checkpoint_paths)} models...")
-        
-        for path in checkpoint_paths:
-            # 1. Khởi tạo kiến trúc model (VD: UNet, ResUnet...)
-            # Lưu ý: model_class là tên Class model gốc của bạn (ví dụ: UNet)
-            model = model_class(in_channels=in_channels, num_classes=num_classes)
-            
-            # 2. Load weights
-            checkpoint = torch.load(path, map_location=device)
-            if 'state_dict' in checkpoint:
-                model.load_state_dict(checkpoint['state_dict'])
-            elif 'model_state_dict' in checkpoint:
-                 model.load_state_dict(checkpoint['model_state_dict'])
-            else:
-                model.load_state_dict(checkpoint)
-            
-            # 3. Eval mode & Freeze
-            model.to(device)
-            model.eval()
-            for param in model.parameters():
-                param.requires_grad = False
-                
-            self.models.append(model)
-            print(f"  + Loaded: {path}")
 
-    def forward(self, x):
-        outputs = []
-        # 1. Lấy xác suất từ từng model
-        with torch.no_grad():
-            for model in self.models:
-                logits = model(x)
-                if isinstance(logits, (list, tuple)):
-                    logits = logits[0]
-                
-                # Chuyển Logits -> Probabilities (0-1) để cộng gộp
-                probs = torch.sigmoid(logits)
-                outputs.append(probs)
-        
-        # 2. Tính trung bình (Soft Voting)
-        avg_probs = torch.stack(outputs).mean(dim=0)
-        
-        # 3. TRICK QUAN TRỌNG: Chuyển ngược về Logits (Inverse Sigmoid)
-        # Vì hàm evaluate() của bạn có dòng `probs = torch.sigmoid(logits)`
-        # Nên ta phải trả về logits để khi evaluate sigmoid lần nữa nó ra đúng avg_probs ban đầu.
-        # Công thức: logit(p) = log(p / (1 - p))
-        eps = 1e-7 # Tránh chia cho 0
-        avg_probs_clamped = torch.clamp(avg_probs, eps, 1 - eps)
-        avg_logits = torch.log(avg_probs_clamped / (1 - avg_probs_clamped))
-        
-        return avg_logits
 
 def main(args):  
     print(f"\n[DEBUG TRAIN] args.loss bạn nhập từ bàn phím = {args.loss}")
@@ -195,6 +140,7 @@ def main(args):
     print("-" * 50)
     import glob
     import os
+    from dataset import EnsembleModel
     set_seed()
     if args.mode == "train":
         if not os.path.exists(BASE_OUTPUT):
