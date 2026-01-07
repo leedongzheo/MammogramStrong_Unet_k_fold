@@ -321,7 +321,7 @@ def main(args):
             mean_score = np.mean(fold_scores)
             std_score = np.std(fold_scores)
             print("\n" + "="*60)
-            print(f" FINAL 5-FOLD CV RESULTS")
+            print(f" FINAL 4-FOLD CV RESULTS")
             print(f" Scores per fold: {fold_scores}")
             print(f" Average Dice: {mean_score:.4f} (+/- {std_score:.4f})")
             print("="*60)    
