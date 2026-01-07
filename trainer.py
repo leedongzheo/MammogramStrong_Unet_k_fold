@@ -34,32 +34,6 @@ class Trainer:
         # AMP & Scheduler
         self.use_amp = torch.cuda.is_available()
         self.scaler = GradScaler(enabled=self.use_amp)
-        # --- [SỬA ĐỔI QUAN TRỌNG: SCHEDULER VỚI WARM-UP] ---
-        # Giả sử LR gốc trong optimizer là 1e-4.
-        # Chúng ta muốn bắt đầu từ 1e-6 -> start_factor = 1e-6 / 1e-4 = 0.01
-        
-        # # 1. Scheduler 1: Warm-up (Linear tăng dần) trong 5 Epochs đầu
-        # warmup_scheduler = LinearLR(
-        #     self.optimizer, 
-        #     start_factor = 0.01, # Bắt đầu từ LR * 0.01
-        #     end_factor = 1.0,    # Kết thúc tại LR * 1.0
-        #     total_iters = warmup_epochs      # Kéo dài 10 epoch
-        # )
-
-        # # 2. Scheduler 2: Main (Cosine Annealing) chạy sau khi warm-up xong
-        # main_scheduler = CosineAnnealingWarmRestarts(
-        #     self.optimizer, 
-        #     T_0=10, 
-        #     T_mult=2, 
-        #     eta_min=1e-6
-        # )
-        # # Scheduler
-        # # self.scheduler = CosineAnnealingWarmRestarts(self.optimizer, T_0=10, T_mult=2, eta_min=1e-6)
-        # self.scheduler = SequentialLR(
-        #     self.optimizer, 
-        #     schedulers=[warmup_scheduler, main_scheduler], 
-        #     milestones=[warmup_epochs] 
-        # )
         # Start epoch
         self.start_epoch = 0
 
@@ -68,6 +42,7 @@ class Trainer:
             'epoch': epoch,
             'model_state_dict': self.model.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
+            # 'scheduler_state_dict': self.scheduler.state_dict(),   
             'scheduler_state_dict': self.scheduler.state_dict() if self.scheduler else None, 
             'scaler_state_dict': self.scaler.state_dict(),
             'history': self.history,
