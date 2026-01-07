@@ -69,6 +69,14 @@ def set_grad_status(model, freeze=True):
         print(f"[INFO] {name} is now {status}")
     else:
         print("[WARNING] Could not find 'backbone' or 'encoder' to freeze!")
+def model_factory(in_channels=3, num_classes=1):
+    return smp.UnetPlusPlus(
+        encoder_name="tu-resnest50d", 
+        encoder_weights=None, # QUAN TRỌNG: Để None cho load nhanh, vì đằng nào cũng load checkpoint đè lên
+        in_channels=in_channels,
+        classes=num_classes,
+        drop_path_rate=0.5
+    )
 def initialize_training_setup(args):
     from utils import get_loss_instance, _focal_tversky_global
     """
@@ -78,14 +86,7 @@ def initialize_training_setup(args):
     print(f"[INIT] Initializing Model, Optimizer, and Trainer...")
     
     # 1. Khởi tạo Model
-    model = smp.UnetPlusPlus(
-        encoder_name="tu-resnest50d", 
-        encoder_weights=None,
-        in_channels=3,
-        classes=1,
-        drop_path_rate=0.5
-    )
-    
+    model = model_factory(in_channels=3, num_classes=1)
     # 2. Load Pretrained Weights (DDSM) nếu có
     # (Logic này dùng chung cho cả 2 mode đều tốt)
     ddsm_checkpoint_path = "best_model_cbis_ddsm.pth"
@@ -116,6 +117,63 @@ def initialize_training_setup(args):
 
     # 5. Trainer
     return model, opt, criterion, scheduler
+class EnsembleModel(nn.Module):
+    def __init__(self, model_class, checkpoint_paths, device='cuda', in_channels=3, num_classes=1):
+        super().__init__()
+        self.models = nn.ModuleList()
+        self.device = device
+        
+        print(f"[ENSEMBLE] Loading {len(checkpoint_paths)} models...")
+        
+        for path in checkpoint_paths:
+            # 1. Khởi tạo kiến trúc model (VD: UNet, ResUnet...)
+            # Lưu ý: model_class là tên Class model gốc của bạn (ví dụ: UNet)
+            model = model_class(in_channels=in_channels, num_classes=num_classes)
+            
+            # 2. Load weights
+            checkpoint = torch.load(path, map_location=device)
+            if 'state_dict' in checkpoint:
+                model.load_state_dict(checkpoint['state_dict'])
+            elif 'model_state_dict' in checkpoint:
+                 model.load_state_dict(checkpoint['model_state_dict'])
+            else:
+                model.load_state_dict(checkpoint)
+            
+            # 3. Eval mode & Freeze
+            model.to(device)
+            model.eval()
+            for param in model.parameters():
+                param.requires_grad = False
+                
+            self.models.append(model)
+            print(f"  + Loaded: {path}")
+
+    def forward(self, x):
+        outputs = []
+        # 1. Lấy xác suất từ từng model
+        with torch.no_grad():
+            for model in self.models:
+                logits = model(x)
+                if isinstance(logits, (list, tuple)):
+                    logits = logits[0]
+                
+                # Chuyển Logits -> Probabilities (0-1) để cộng gộp
+                probs = torch.sigmoid(logits)
+                outputs.append(probs)
+        
+        # 2. Tính trung bình (Soft Voting)
+        avg_probs = torch.stack(outputs).mean(dim=0)
+        
+        # 3. TRICK QUAN TRỌNG: Chuyển ngược về Logits (Inverse Sigmoid)
+        # Vì hàm evaluate() của bạn có dòng `probs = torch.sigmoid(logits)`
+        # Nên ta phải trả về logits để khi evaluate sigmoid lần nữa nó ra đúng avg_probs ban đầu.
+        # Công thức: logit(p) = log(p / (1 - p))
+        eps = 1e-7 # Tránh chia cho 0
+        avg_probs_clamped = torch.clamp(avg_probs, eps, 1 - eps)
+        avg_logits = torch.log(avg_probs_clamped / (1 - avg_probs_clamped))
+        
+        return avg_logits
+
 def main(args):  
     print(f"\n[DEBUG TRAIN] args.loss bạn nhập từ bàn phím = {args.loss}")
     print("-" * 50)
@@ -135,16 +193,17 @@ def main(args):
     print("-" * 50)
     print(f"[INFO] Mode: {args.mode.upper()}")
     print("-" * 50)
-
+    import glob
+    import os
     set_seed()
     if args.mode == "train":
         if not os.path.exists(BASE_OUTPUT):
             os.makedirs(BASE_OUTPUT)
-        # Biến lưu kết quả 5 fold
+        # Biến lưu kết quả 4 fold
         fold_scores = []
-        # --- VÒNG LẶP 5 FOLD ---
+        # --- VÒNG LẶP 4 FOLD ---
 
-        NUM_FOLDS = 5
+        NUM_FOLDS = 4
         for fold_idx in range(NUM_FOLDS):
             print("\n" + "#"*60)
             print(f"### STARTING FOLD {fold_idx + 1}/{NUM_FOLDS} ###")
@@ -174,8 +233,8 @@ def main(args):
             trainLoader, validLoader, _ = get_dataloaders(aug_mode='strong', state='train', fold_idx=fold_idx)
             set_grad_status(model, freeze=True) # Hàm có sẵn của bạn
             trainer.optimizer.param_groups[0]['lr'] = lr_stage1 # Decoder học nhanh hơn chút
-            trainer.num_epochs = 10 # Chạy tầm 20 epoch
-            trainer.patience = 10
+            trainer.num_epochs = 150 # Chạy tầm 20 epoch
+            trainer.patience = 30
             trainer.scheduler = None # Không cần giảm LR đoạn này
             # Train nhẹ
             trainer.train(trainLoader, validLoader, resume_path=None)
@@ -186,7 +245,7 @@ def main(args):
             set_grad_status(model, freeze=False) # Mở khóa
             # Update Loss Params (Nên làm mới mỗi fold để chắc chắn)
             if args.loss == "FocalTversky_loss":
-                _focal_tversky_global.update_params(alpha=0.4, beta=0.6, gamma=1.33)
+                _focal_tversky_global.update_params(alpha=0.4, beta=0.6, gamma=1)
                 trainer.best_val_loss = float('inf')
             step1_ckpt = "best_dice_mass_model.pth"
             if os.path.exists(step1_ckpt):
@@ -207,15 +266,6 @@ def main(args):
             trainer.patience = 25    # Kiên nhẫn
             trainer.early_stop_counter = 0 # Reset đếm
             trainer.train(trainLoader, validLoader, resume_path=None)
-            # Load lại model tốt nhất vừa train xong ở Bước 1 để chạy tiếp
-            # last_step1_model = "best_dice_mass_model.pth" 
-            # trainer.train(trainLoader, validLoader, resume_path=last_step1_model)
-            # if os.path.exists("best_dice_mass_model.pth"):
-            #     print(f"[FOLD {fold_idx}] Loading best model from Step 1 to continue Step 2...")
-            #     trainer.train(trainLoader, validLoader, resume_path="best_dice_mass_model.pth")
-            # else:
-            #     print(f"[FOLD {fold_idx}] WARNING: No best model from Step 1 found. Continuing with current weights.")
-            #     trainer.train(trainLoader, validLoader, resume_path=None)
             # --- LƯU KẾT QUẢ FOLD ---
             best_dice = trainer.best_dice_mass
             print(f"--> [RESULT] Fold {fold_idx} Best Dice: {best_dice:.4f}")
@@ -240,8 +290,6 @@ def main(args):
                 # current_fold = fold if 'fold' in locals() else None 
                 # 1. QUAN TRỌNG: Load lại BEST MODEL của GD3 (Không dùng model cuối cùng)
                 # best_model_path = "best_dice_mass_model.pth"
-                
-                
                 path_to_best_model = os.path.join(fold_dir, "best_dice_mass_model.pth")
                 if not os.path.exists(path_to_best_model):
                     best_ep = trainer.best_epoch_dice
@@ -350,33 +398,47 @@ def main(args):
     elif args.mode == "evaluate":
         print(f"[INFO] Mode: EVALUATING FULL DATASET")
         
-        trainLoader, validLoader, testLoader = get_dataloaders(aug_mode='none', state='evaluate')
+        _, _, testLoader = get_dataloaders(aug_mode='none', state='evaluate')
+        model_paths = []
+        base_checkpoint_path = args.checkpoint 
+        NUM_FOLDS_TO_EVAL = 4
+        print(f"[SEARCH] Looking for models in: {base_checkpoint_path}")
         
-        eval_tasks = [
-            (trainLoader, "train"),
-            (validLoader, "valid"),
-            (testLoader, "test")
-        ]
+        for i in range(NUM_FOLDS_TO_EVAL):
+            # Tìm file .pth trong mỗi fold (dùng * để bỏ qua phần tên epoch dài dòng)
+            search_pattern = os.path.join(base_checkpoint_path, f"fold_{i}", "**", "best_dice_mass_model.pth")
+            files = glob.glob(search_pattern, recursive=True)
+            
+            if files:
+                model_paths.append(files[0])
+                print(f"Fold {i}: Found {files[0]}")
+            else:
+                print(f"  ! Fold {i}: Warning - File not found at {search_pattern}")
+        if len(model_paths) == 0:
+            raise ValueError("Không tìm thấy model nào! Kiểm tra lại đường dẫn output.")
+        # 4. KHỞI TẠO ENSEMBLE MODEL
+        print(f"[ENSEMBLE] Initializing Ensemble with {len(model_paths)} models...")
+        ensemble_model = EnsembleModel(
+            model_class=model_factory,  # Truyền hàm factory
+            checkpoint_paths=model_paths, 
+            device=DEVICE,
+            in_channels=3,
+            num_classes=1
+        )
         
-        for loader, split_name in eval_tasks:
-            print(f"\n" + "="*40)
-            print(f" [EVALUATING] Processing: {split_name.upper()} SET")
-            print("="*40)
-            
-            visual_folder = os.path.join(BASE_OUTPUT, f"prediction_images_{split_name}")
-            if not os.path.exists(visual_folder):
-                os.makedirs(visual_folder)
-            
-            trainer.evaluate(
-                test_loader=loader, 
-                checkpoint_path=args.checkpoint,
-                save_visuals=True,          
-                output_dir=visual_folder    
-            )
-            
-            # --- GỌI HÀM VỚI THAM SỐ MỚI ---
-            print(f"[INFO] Exporting metrics for {split_name}...")
-            export_evaluate(trainer, split_name=split_name, fold_idx="eval_run")
+        trainer = Trainer(model=ensemble_model, device=DEVICE)
+        ensemble_output_dir = os.path.join(base_checkpoint_path, "ensemble_predictions_final")
+        os.makedirs(ensemble_output_dir, exist_ok=True)
+        print(f"[EXEC] Running Inference & Visualization...")
+        # Gọi hàm evaluate có sẵn của Trainer
+        trainer.evaluate(
+            test_loader=testLoader, 
+            checkpoint_path=None, # Không cần load path vì Ensemble đã load rồi
+            save_visuals=True, 
+            output_dir=ensemble_output_dir
+        )
+        export_evaluate(trainer, split_name="final_ensemble_test", fold_idx="ensemble")
+        print("[DONE] Ensemble Evaluation Finished.")
 
 if __name__ == "__main__":
     args = get_args()
