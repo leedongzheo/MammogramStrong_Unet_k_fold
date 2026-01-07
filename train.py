@@ -252,7 +252,7 @@ def main(args):
                 # 2. Khởi tạo SWA
                 swa_model = AveragedModel(trainer.model)
                 # LR cho SWA: Cao hơn GD3 một chút để thoát hố (5e-5 là an toàn với AdamW)
-                swa_lr = 5e-5 
+                swa_lr = 1e-5 
                 swa_scheduler = SWALR(trainer.optimizer, swa_lr=swa_lr, anneal_epochs=3)
                 print(f"[CONFIG] SWA Scheduler set. LR: {swa_lr}")
 
