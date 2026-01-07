@@ -164,15 +164,16 @@ def main(args):
             # resume_checkpoint = None
             # --- GIAI ĐOẠN 1: FREEZE ENCODER ---
             # --- BƯỚC 1: ĐÓNG BĂNG ENCODER (Để Decoder làm quen ảnh mới trước) ---
+            lr_stage1 = 1e-4
             print(f"\n[FOLD {fold_idx}] STEP 1: Freeze Encoder Training")
             print("\n" + "="*40)
             print(" TRANSFER LEARNING: INbreast Dataset")
-            print(" Strategy: Low LR (1e-4) + Frozen Encoder First|Train Decoder only")
+            print(f" Strategy: Low LR {lr_stage1} + Frozen Encoder First|Train Decoder only")
             print("="*40)
             # [QUAN TRỌNG] Augmentation cho INbreast phải MẠNH vì dữ liệu ít
             trainLoader, validLoader, _ = get_dataloaders(aug_mode='strong', state='train', fold_idx=fold_idx)
             set_grad_status(model, freeze=True) # Hàm có sẵn của bạn
-            trainer.optimizer.param_groups[0]['lr'] = 1e-4 # Decoder học nhanh hơn chút
+            trainer.optimizer.param_groups[0]['lr'] = lr_stage1 # Decoder học nhanh hơn chút
             trainer.num_epochs = 10 # Chạy tầm 20 epoch
             trainer.patience = 10
             trainer.scheduler = None # Không cần giảm LR đoạn này
@@ -187,27 +188,34 @@ def main(args):
             if args.loss == "FocalTversky_loss":
                 _focal_tversky_global.update_params(alpha=0.4, beta=0.6, gamma=1.33)
                 trainer.best_val_loss = float('inf')
-            
+            step1_ckpt = "best_dice_mass_model.pth"
+            if os.path.exists(step1_ckpt):
+                print(f"[FOLD {fold_idx}] Loading best model from Step 1 manually...")
+                trainer.load_checkpoint(step1_ckpt)
+            else:
+                print(f"[WARNING] No checkpoint found at {step1_ckpt}. Training from scratch/ImageNet.")
             # Reset LR về mức siêu thấp
-            trainer.optimizer.param_groups[0]['lr'] = 1e-5 
-            trainer.optimizer.param_groups[0]['weight_decay'] = 0.05
-            print(f"[CONFIG] Updated Optimizer: LR = 1e-5 | Weight Decay = 1e-2")
+            lr_stage2 = 1e-5 
+            weight_decay_stage = 0.05
+            trainer.optimizer.param_groups[0]['lr'] = lr_stage2
+            trainer.optimizer.param_groups[0]['weight_decay'] = weight_decay_stage
+            print(f"[CONFIG] Updated Optimizer: LR = {lr_stage2} | Weight Decay = {weight_decay_stage}")
             # Gán lại Scheduler để giảm LR nếu kẹt
             trainer.scheduler = scheduler
             
             trainer.num_epochs = NUM_EPOCHS # Chạy lâu
             trainer.patience = 25    # Kiên nhẫn
             trainer.early_stop_counter = 0 # Reset đếm
-            
+            trainer.train(trainLoader, validLoader, resume_path=None)
             # Load lại model tốt nhất vừa train xong ở Bước 1 để chạy tiếp
             # last_step1_model = "best_dice_mass_model.pth" 
             # trainer.train(trainLoader, validLoader, resume_path=last_step1_model)
-            if os.path.exists("best_dice_mass_model.pth"):
-                print(f"[FOLD {fold_idx}] Loading best model from Step 1 to continue Step 2...")
-                trainer.train(trainLoader, validLoader, resume_path="best_dice_mass_model.pth")
-            else:
-                print(f"[FOLD {fold_idx}] WARNING: No best model from Step 1 found. Continuing with current weights.")
-                trainer.train(trainLoader, validLoader, resume_path=None)
+            # if os.path.exists("best_dice_mass_model.pth"):
+            #     print(f"[FOLD {fold_idx}] Loading best model from Step 1 to continue Step 2...")
+            #     trainer.train(trainLoader, validLoader, resume_path="best_dice_mass_model.pth")
+            # else:
+            #     print(f"[FOLD {fold_idx}] WARNING: No best model from Step 1 found. Continuing with current weights.")
+            #     trainer.train(trainLoader, validLoader, resume_path=None)
             # --- LƯU KẾT QUẢ FOLD ---
             best_dice = trainer.best_dice_mass
             print(f"--> [RESULT] Fold {fold_idx} Best Dice: {best_dice:.4f}")
