@@ -170,7 +170,10 @@ def export(trainer, fold_idx=None):
     plt.close()
 def export_evaluate(trainer, split_name="test", fold_idx=None): # <--- Thêm fold_idx
     # --- SỬA LOGIC FOLDER ---
-    if fold_idx is not None:
+    if fold_idx == "ensemble":
+        # Nếu là ensemble, lưu chung vào folder chứa ảnh predict cho gọn
+        output_folder = os.path.join(BASE_OUTPUT, split_name)
+    elif fold_idx is not None:
         output_folder = os.path.join(BASE_OUTPUT, f"fold_{fold_idx}")
     else:
         output_folder = BASE_OUTPUT
