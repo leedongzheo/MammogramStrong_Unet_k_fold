@@ -13,7 +13,7 @@ AUG_PROBS = {
 }
 
 # Đường dẫn đến file metadata (đã tạo bằng script offline)
-METADATA_PATH = "train_metadata.csv"
+# METADATA_PATH = "train_metadata.csv"
 # Giá trị an toàn mặc định nếu không tìm thấy trong CSV
 GLOBAL_MIN_AREA_DEFAULT = 143.5  
 # Mean và Std chuẩn cho bộ 3 kênh (Original, CLAHE, Gamma)
@@ -504,9 +504,9 @@ def get_dataloaders(aug_mode='none', state='train', fold_idx=0):
     # print(f"[INFO] Found {len(testDS)} test images")
     train_targets = []
     # --- CÁCH MỚI: Đọc từ CSV (Siêu nhanh) ---
-    if os.path.exists(METADATA_PATH):
-        print(f"[INFO] Loading targets directly from {METADATA_PATH} (Fast)...")
-        df = pd.read_csv(METADATA_PATH)
+    if os.path.exists(metadata_csv):
+        print(f"[INFO] Loading targets directly from {metadata_csv} (Fast)...")
+        df = pd.read_csv(metadata_csv)
         
         # Tạo từ điển mapping: Tên file -> Nhãn (0 hoặc 1)
         # mass_area > 0 là Mass (1), ngược lại là Normal (0)
@@ -529,7 +529,7 @@ def get_dataloaders(aug_mode='none', state='train', fold_idx=0):
             
     else:
         # --- CÁCH CŨ: Quét từng ảnh (Chậm - Fallback nếu mất file CSV) ---
-        print("[INFO] Metadata CSV not found. Scanning image files (Slow)...")
+        print(f"[INFO] Metadata CSV for Fold {fold_idx} not found at {metadata_csv}. Scanning image files (Slow)...")
         for maskPath in tqdm(trainMasksPaths, desc="Scanning for Sampler"):
             mask = cv2.imread(maskPath, cv2.IMREAD_GRAYSCALE)
             train_targets.append(1 if cv2.countNonZero(mask) > 0 else 0)
@@ -571,7 +571,7 @@ def get_dataloaders(aug_mode='none', state='train', fold_idx=0):
         trainDS, 
         batch_size=batch_size, 
         sampler=sampler,        # Dùng sampler để cân bằng batch
-        shuffle=False,          # Sampler bật thì Shuffle phải tắt
+        shuffle=shuffle,          # Sampler bật thì Shuffle phải tắt
         pin_memory=PIN_MEMORY,
         num_workers=4, 
         worker_init_fn=seed_worker, 
