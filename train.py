@@ -167,7 +167,7 @@ def main(args):
             print(f"\n[FOLD {fold_idx}] STEP 1: Freeze Encoder Training")
             print("\n" + "="*40)
             print(" TRANSFER LEARNING: INbreast Dataset")
-            print(" Strategy: Low LR (1e-5) + Frozen Encoder First|Train Decoder only")
+            print(" Strategy: Low LR (1e-4) + Frozen Encoder First|Train Decoder only")
             print("="*40)
             # [QUAN TRỌNG] Augmentation cho INbreast phải MẠNH vì dữ liệu ít
             trainLoader, validLoader, _ = get_dataloaders(aug_mode='strong', state='train', fold_idx=fold_idx)
