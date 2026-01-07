@@ -173,8 +173,8 @@ def main(args):
             trainLoader, validLoader, _ = get_dataloaders(aug_mode='strong', state='train', fold_idx=fold_idx)
             set_grad_status(model, freeze=True) # Hàm có sẵn của bạn
             trainer.optimizer.param_groups[0]['lr'] = 1e-4 # Decoder học nhanh hơn chút
-            trainer.num_epochs = 20 # Chạy tầm 20 epoch
-            trainer.patience = 20
+            trainer.num_epochs = 10 # Chạy tầm 20 epoch
+            trainer.patience = 10
             trainer.scheduler = None # Không cần giảm LR đoạn này
             # Train nhẹ
             trainer.train(trainLoader, validLoader, resume_path=None)
