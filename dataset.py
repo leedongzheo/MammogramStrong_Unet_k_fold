@@ -559,7 +559,7 @@ def get_dataloaders(aug_mode='none', state='train', fold_idx=0):
 	    
         samples_weights = class_weights[train_targets]
         sampler = WeightedRandomSampler(weights=samples_weights, num_samples=len(samples_weights), replacement=True)
-        
+        shuffle = False # [FIXED] Có sampler thì BẮT BUỘC tắt shuffle
     # else: # Train không Augment hoặc trường hợp khác
     #     sampler = None
     #     shuffle = True # Shuffle cho ngẫu nhiên nếu không dùng sampler
