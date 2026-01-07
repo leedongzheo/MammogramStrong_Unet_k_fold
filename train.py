@@ -196,10 +196,10 @@ def main(args):
                 print(f"[WARNING] No checkpoint found at {step1_ckpt}. Training from scratch/ImageNet.")
             # Reset LR về mức siêu thấp
             lr_stage2 = 1e-5 
-            weight_decay_stage = 0.05
+            weight_decay_stage2 = 1e-2
             trainer.optimizer.param_groups[0]['lr'] = lr_stage2
-            trainer.optimizer.param_groups[0]['weight_decay'] = weight_decay_stage
-            print(f"[CONFIG] Updated Optimizer: LR = {lr_stage2} | Weight Decay = {weight_decay_stage}")
+            trainer.optimizer.param_groups[0]['weight_decay'] = weight_decay_stage2
+            print(f"[CONFIG] Updated Optimizer: LR = {lr_stage2} | Weight Decay = {weight_decay_stage2}")
             # Gán lại Scheduler để giảm LR nếu kẹt
             trainer.scheduler = scheduler
             
