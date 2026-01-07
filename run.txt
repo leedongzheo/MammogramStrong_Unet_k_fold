@@ -1,0 +1,12 @@
+python train.py --mode train --data "./path/to/your/dataset" --saveas "./checkpoints/experiment_01" --loss FocalTversky_loss --augment --warmup 10 --epoch 100 --batchsize 32 --img_size 512 512 --lr0 0.0001
+python train.py \
+    --mode train \
+    --data "./path/to/your/dataset" \
+    --saveas "./checkpoints/experiment_01" \
+    --loss FocalTversky_loss \
+    --augment \
+    --warmup 10 \
+    --epoch 100 \
+    --batchsize 32 \
+    --img_size 512 512 \
+    --lr0 0.0001
