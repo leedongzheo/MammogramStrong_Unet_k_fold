@@ -193,6 +193,7 @@ class Trainer:
         MIN_LR_THRESHOLD = 1e-6  
         RESET_LR_VALUE = 5e-5
         MIN_LR = 1e-6
+        MAX_RESETS = 3
         for epoch in range(self.start_epoch, self.num_epochs):
             self.current_epoch = epoch 
             
@@ -219,7 +220,6 @@ class Trainer:
                 current_lr = self.scheduler.get_last_lr()[0]
             except:
                 current_lr = self.optimizer.param_groups[0]['lr']
-            MAX_RESETS = 3
             if not hasattr(self, 'reset_count'): self.reset_count = 0
             # Kiểm tra: Đang dùng ReduceLR VÀ LR đã chạm đáy
             if self.scheduler and isinstance(self.scheduler, ReduceLROnPlateau):
