@@ -68,7 +68,6 @@ class Trainer:
             'epoch': epoch,
             'model_state_dict': self.model.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
-            'scheduler_state_dict': self.scheduler.state_dict(),   
             'scheduler_state_dict': self.scheduler.state_dict() if self.scheduler else None, 
             'scaler_state_dict': self.scaler.state_dict(),
             'history': self.history,
