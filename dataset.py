@@ -470,9 +470,10 @@ def get_dataloaders(aug_mode='none', state='train', fold_idx=0):
         A.Normalize(mean=norm_mean, std=norm_std, max_pixel_value=255.0),
         ToTensorV2()
     ])
+
     # 2. XÂY DỰNG ĐƯỜNG DẪN ĐỘNG THEO FOLD
     # Cấu trúc: INBREAST_5folds/fold_X/train/images
-    fold_dir = os.path.join(DATASET_ROOT_5FOLDS, f"fold_{fold_idx}")
+    fold_dir = os.path.join(DATASET_ROOT_4FOLDS, f"fold_{fold_idx}")
     train_img_dir = os.path.join(fold_dir, "train", "images")
     train_mask_dir = os.path.join(fold_dir, "train", "masks")
     valid_img_dir = os.path.join(fold_dir, "valid", "images")
@@ -484,9 +485,12 @@ def get_dataloaders(aug_mode='none', state='train', fold_idx=0):
     validMasksPaths = sorted(list(paths.list_images(valid_mask_dir)))
     # testImagesPaths = sorted(list(paths.list_images(IMAGE_TEST_PATH)))
     # testMasksPaths = sorted(list(paths.list_images(MASK_TEST_PATH)))
-    # Trong 5-Fold, Valid cũng chính là Test của vòng đó -> Dùng chung đường dẫn
-    testImagesPaths = validImagesPaths
-    testMasksPaths = validMasksPaths
+    # Trong 4-Fold, Valid cũng chính là Test của vòng đó -> Dùng chung đường dẫn
+    
+    test_img_dir = os.path.join(DATASET_ROOT_4FOLDS, "test", "images")
+    test_mask_dir = os.path.join(DATASET_ROOT_4FOLDS, "test", "masks")
+    testImagesPaths = sorted(list(paths.list_images(test_img_dir)))
+    testMasksPaths = sorted(list(paths.list_images(test_mask_dir)))
     # 3. Khởi tạo Dataset
     # Chỉ truyền metadata cho tập Train để chạy Dynamic Augmentation
     trainDS = SegmentationDataset(
