@@ -507,7 +507,8 @@ def get_dataloaders(aug_mode='none', state='train', fold_idx=0):
         train_transform = A.Compose([
             A.Resize(height=INPUT_IMAGE_WIDTH, width=INPUT_IMAGE_WIDTH, interpolation=cv2.INTER_LINEAR),
             A.HorizontalFlip(p=0.5), 
-			A.VerticalFlip(p=0.5),
+			# A.VerticalFlip(p=0.5),
+            A.Rotate(limit=15, border_mode=cv2.BORDER_CONSTANT, value=0, p=0.5),
             A.Normalize(mean=norm_mean, std=norm_std, max_pixel_value=255.0),
             ToTensorV2()
         ])
