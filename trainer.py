@@ -1,7 +1,27 @@
 from config import *
 from utils import *
 from optimizer import *
-
+def remove_small_objects(pred_mask_tensor, min_size=50):
+    """
+    Input: Tensor (H, W) nằm trên GPU hoặc CPU, giá trị 0 hoặc 1
+    Output: Tensor (H, W) đã xóa nhiễu, nằm trên cùng device với Input
+    """
+    # 1. Chuyển sang Numpy (CPU) để dùng OpenCV
+    device = pred_mask_tensor.device
+    pred_np = pred_mask_tensor.detach().cpu().numpy().astype(np.uint8)
+    
+    # 2. Tìm các vùng liên thông (Connected Components)
+    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(pred_np, connectivity=8)
+    
+    # 3. Lọc bỏ vùng nhỏ
+    new_mask = np.zeros_like(pred_np)
+    for i in range(1, num_labels): # Bỏ qua background (nhãn 0)
+        area = stats[i, cv2.CC_STAT_AREA]
+        if area >= min_size:
+            new_mask[labels == i] = 1
+            
+    # 4. Chuyển ngược lại Tensor và đẩy về Device cũ (GPU)
+    return torch.from_numpy(new_mask).float().to(device)
 class Trainer:
     def __init__(self, model, optimizer, criterion, scheduler, patience=20, device=DEVICE):
         self.device = device
@@ -326,11 +346,15 @@ class Trainer:
         # Biến tích lũy cho test
         total_dice_mass, count_mass = 0.0, 0
         total_dice_norm, count_norm = 0.0, 0
+        
         # Tạo thư mục lưu ảnh nếu cần
         if save_visuals:
             os.makedirs(output_dir, exist_ok=True)
             print(f"[INFO] Saving visualization results to: {output_dir}")
-
+        # Ngưỡng Pixel và Ngưỡng kích thước vùng nhiễu
+        PIXEL_THRESHOLD = 0.3  # Độ tin cậy (0-1)
+        MIN_OBJECT_SIZE = 100   # Số pixel tối thiểu để được coi là khối u
+        EPSILON = 1e-6
         with torch.no_grad():
             test_bar = tqdm(enumerate(test_loader), total=len(test_loader), desc="Testing")
             for i, (images, masks, image_paths) in test_bar:
@@ -349,14 +373,30 @@ class Trainer:
                     # Tính xác suất để visualize (0 -> 1)
                     probs = torch.sigmoid(logits_for_pred) # Sigmoid chỉ chạy trên Tensor, không chạy trên List
                     # Tạo mask nhị phân (0 hoặc 1) để vẽ
-                    preds = (probs > 0.3).float()
+                    raw_preds = (probs > PIXEL_THRESHOLD).float()
+                    # preds = (probs > PIXEL_THRESHOLD).float()
                 # Lặp từng ảnh trong batch để tính metric và vẽ
                 for j in range(images.size(0)):
-                    d = batch_dices[j].item()
-                    ious = batch_ious[j].item()
+                    single_pred = raw_preds[j].squeeze() # (H, W)
+                    single_mask = masks[j].squeeze()     # (H, W)
+                    clean_pred = remove_small_objects(single_pred, min_size=MIN_OBJECT_SIZE)
+                    # --- [FIX LOGIC] XỬ LÝ TRƯỜNG HỢP CẢ 2 ĐỀU TRỐNG ---
+                    intersection = (clean_pred * single_mask).sum()
+                    pred_sum = clean_pred.sum()
+                    gt_sum = single_mask.sum()
+
+                    # --- CÔNG THỨC DICE (Safe Metric) ---
+                    # (2 * inter + eps) / (sum_p + sum_gt + eps)
+                    # Nếu cả 2 đều rỗng (0) -> Dice = eps/eps = 1.0 (Đúng!)
+                    dice_val = (2. * intersection + EPSILON) / (pred_sum + gt_sum + EPSILON)
+                    d = dice_val.item()
+                    # --- CÔNG THỨC DICE (Safe Metric) ---
+                    union = pred_sum + gt_sum - intersection
+                    iou_val = (intersection + EPSILON) / (union + EPSILON)
+                    ious = iou_val.item()
+
                     path = image_paths[j]
-                    # Logic phân loại Mass/Normal
-                    is_normal = (masks[j].sum() == 0)
+                    is_normal = (gt_sum == 0)
                     current_type = "Normal" if is_normal else "Mass"
                     
                     self.dice_list.append(d)
@@ -376,12 +416,12 @@ class Trainer:
                         file_name = os.path.basename(path)
                         # Prefix NORM/MASS
                         prefix = "NORM" if is_normal else "MASS" # Dùng lại biến is_normal ở trên
-                        save_name = f"pred_{prefix}_D{d:.2f}_{file_name}"
+                        save_name = f"pred_{prefix}_Clean_D{d:.2f}_{file_name}"
                         save_full_path = os.path.join(output_dir, save_name)
                         visualize_prediction(
                             img_tensor=images[j],
                             mask_tensor=masks[j],
-                            pred_tensor=preds[j], # Dùng preds đã tính ở trên
+                            pred_tensor=clean_pred, # <--- Vẽ ảnh đã xóa nhiễu
                             save_path=save_full_path,
                             iou_score=ious,
                             dice_score=d
@@ -392,7 +432,7 @@ class Trainer:
         avg_dice_mass = total_dice_mass / count_mass if count_mass > 0 else 0.0
         avg_dice_norm = total_dice_norm / count_norm if count_norm > 0 else 0.0
         # print(f"\n[TEST RESULT] Avg Hard Dice: {avg_dice:.4f}, Avg Hard IoU: {avg_iou:.4f}")
-        print(f"\n[TEST REPORT]")
+        print(f"\n[TEST REPORT (Threshold={PIXEL_THRESHOLD} | MinSize={MIN_OBJECT_SIZE})]")
         print(f"   - Mass Samples: {count_mass} | Avg Dice: {avg_dice_mass:.4f}")
         print(f"   - Norm Samples: {count_norm} | Avg Dice: {avg_dice_norm:.4f}") # Chỉ số này nên là 1.0 hoặc gần 1.0
         return avg_dice_mass, avg_dice_norm, self.dice_list, self.iou_list, self.path_list
