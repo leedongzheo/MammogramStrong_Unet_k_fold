@@ -372,7 +372,7 @@ def main(args):
             num_classes=1
         )
         
-        trainer = Trainer(model=ensemble_model, device=DEVICE)
+        trainer = Trainer(model=ensemble_model, device=DEVICE, optimizer=None, criterion=None, scheduler=None)
         ensemble_output_dir = os.path.join(base_checkpoint_path, "ensemble_predictions_final")
         os.makedirs(ensemble_output_dir, exist_ok=True)
         print(f"[EXEC] Running Inference & Visualization...")
