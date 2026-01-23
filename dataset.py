@@ -491,10 +491,12 @@ class EnsembleModel(nn.Module):
 def get_dataloaders(aug_mode='none', state='train', fold_idx=0):   
     print(f"\n[INFO] Initializing Dataloaders for FOLD {fold_idx} | Augmentation: {aug_mode.upper()}")
     # 0. Lấy Mean/Std và Metadata của Fold hiện tại
-    stats = FOLD_STATS[fold_idx]
-    norm_mean = stats['mean']
-    norm_std = stats['std']
+    # stats = FOLD_STATS[fold_idx]
+    # norm_mean = stats['mean']
+    # norm_std = stats['std']
     metadata_csv = FOLD_METADATA[fold_idx]
+	norm_mean = NORM_MEAN # [0.485, 0.456, 0.406]
+	norm_std  = NORM_STD  # [0.229, 0.224, 0.225]
     # 1. Định nghĩa Transform dựa trên mode
     if aug_mode == 'strong':
         # Dùng Class Custom vừa viết, truyền global_min_area mặc định
