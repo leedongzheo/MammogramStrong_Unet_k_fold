@@ -89,8 +89,7 @@ def model_factory(in_channels=3, num_classes=1):
 #         # trực tiếp ở đây, nên ta bỏ dòng đó đi để tránh lỗi.
 #         decoder_use_batchnorm=True,
 # )
-#     return model
-    # return 
+    return model
 def initialize_training_setup(args):
     from utils import get_loss_instance, _focal_tversky_global
     """
