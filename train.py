@@ -70,13 +70,27 @@ def set_grad_status(model, freeze=True):
     else:
         print("[WARNING] Could not find 'backbone' or 'encoder' to freeze!")
 def model_factory(in_channels=3, num_classes=1):
-    return smp.UnetPlusPlus(
-        encoder_name="tu-resnest50d", 
-        encoder_weights=None, # QUAN TRỌNG: Để None cho load nhanh, vì đằng nào cũng load checkpoint đè lên
+    # model = smp.UnetPlusPlus(
+    #     encoder_name="tu-resnest50d", 
+    #     encoder_weights=None, # QUAN TRỌNG: Để None cho load nhanh, vì đằng nào cũng load checkpoint đè lên
+    #     in_channels=in_channels,
+    #     classes=num_classes,
+    #     drop_path_rate=0.5
+    # )
+    # Thay vì TransUNet (chưa có trong SMP), ta dùng Unet với Encoder là Transformer
+    model = smp.Unet(
+        # mit_b3 là backbone của SegFormer, mạnh tương đương ResNet50/101
+        # nhưng dùng cơ chế Self-Attention.
+        encoder_name="mit_b3",        
+        encoder_weights=None,
         in_channels=in_channels,
         classes=num_classes,
-        drop_path_rate=0.5
-    )
+        # Các backbone Transformer trong SMP thường không nhận tham số drop_path_rate 
+        # trực tiếp ở đây, nên ta bỏ dòng đó đi để tránh lỗi.
+        decoder_use_batchnorm=True,
+)
+    return model
+    # return 
 def initialize_training_setup(args):
     from utils import get_loss_instance, _focal_tversky_global
     """
