@@ -495,8 +495,8 @@ def get_dataloaders(aug_mode='none', state='train', fold_idx=0):
     # norm_mean = stats['mean']
     # norm_std = stats['std']
     metadata_csv = FOLD_METADATA[fold_idx]
-	norm_mean = NORM_MEAN # [0.485, 0.456, 0.406]
-	norm_std  = NORM_STD  # [0.229, 0.224, 0.225]
+    norm_mean = NORM_MEAN # [0.485, 0.456, 0.406]
+    norm_std  = NORM_STD  # [0.229, 0.224, 0.225]
     # 1. Định nghĩa Transform dựa trên mode
     if aug_mode == 'strong':
         # Dùng Class Custom vừa viết, truyền global_min_area mặc định
