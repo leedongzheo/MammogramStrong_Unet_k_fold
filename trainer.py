@@ -343,10 +343,15 @@ class Trainer:
         
         self.model.eval()
         self.dice_list, self.iou_list, self.path_list, self.type_list = [], [], [], []
+        self.sen_list, self.spe_list, self.acc_list = [], [], []
         # Biến tích lũy cho test
-        total_dice_mass, count_mass = 0.0, 0
-        total_dice_norm, count_norm = 0.0, 0
-        
+        # total_dice_mass, count_mass = 0.0, 0
+        # total_dice_norm, count_norm = 0.0, 0
+        total_mass = {'dice': 0.0, 'iou': 0.0, 'sen': 0.0, 'spe': 0.0, 'acc': 0.0}
+        count_mass = 0
+        # Tích lũy cho Normal (Không u)
+        total_norm = {'dice': 0.0, 'iou': 0.0, 'sen': 0.0, 'spe': 0.0, 'acc': 0.0}
+        count_norm = 0
         # Tạo thư mục lưu ảnh nếu cần
         if save_visuals:
             os.makedirs(output_dir, exist_ok=True)
@@ -380,62 +385,91 @@ class Trainer:
                     single_pred = raw_preds[j].squeeze() # (H, W)
                     single_mask = masks[j].squeeze()     # (H, W)
                     clean_pred = remove_small_objects(single_pred, min_size=MIN_OBJECT_SIZE)
+                    # === TÍNH METRICS (Trên GPU luôn) ===
+                    d, iou, sen, spe, acc = calculate_metrics_tensor(clean_pred, single_mask)
                     # --- [FIX LOGIC] XỬ LÝ TRƯỜNG HỢP CẢ 2 ĐỀU TRỐNG ---
-                    intersection = (clean_pred * single_mask).sum()
-                    pred_sum = clean_pred.sum()
-                    gt_sum = single_mask.sum()
+                    # intersection = (clean_pred * single_mask).sum()
+                    # pred_sum = clean_pred.sum()
+                    # gt_sum = single_mask.sum()
 
-                    # --- CÔNG THỨC DICE (Safe Metric) ---
-                    # (2 * inter + eps) / (sum_p + sum_gt + eps)
-                    # Nếu cả 2 đều rỗng (0) -> Dice = eps/eps = 1.0 (Đúng!)
-                    dice_val = (2. * intersection + EPSILON) / (pred_sum + gt_sum + EPSILON)
-                    d = dice_val.item()
-                    # --- CÔNG THỨC DICE (Safe Metric) ---
-                    union = pred_sum + gt_sum - intersection
-                    iou_val = (intersection + EPSILON) / (union + EPSILON)
-                    ious = iou_val.item()
+                    # # --- CÔNG THỨC DICE (Safe Metric) ---
+                    # # (2 * inter + eps) / (sum_p + sum_gt + eps)
+                    # # Nếu cả 2 đều rỗng (0) -> Dice = eps/eps = 1.0 (Đúng!)
+                    # dice_val = (2. * intersection + EPSILON) / (pred_sum + gt_sum + EPSILON)
+                    # d = dice_val.item()
+                    # # --- CÔNG THỨC DICE (Safe Metric) ---
+                    # union = pred_sum + gt_sum - intersection
+                    # iou_val = (intersection + EPSILON) / (union + EPSILON)
+                    # ious = iou_val.item()
 
                     path = image_paths[j]
-                    is_normal = (gt_sum == 0)
+                    is_normal = (single_mask.sum() == 0)
                     current_type = "Normal" if is_normal else "Mass"
                     
                     self.dice_list.append(d)
-                    self.iou_list.append(ious)
+                    self.iou_list.append(iou)
+                    self.sen_list.append(sen)
+                    self.spe_list.append(spe)
+                    self.acc_list.append(acc)
                     self.path_list.append(path)
                     self.type_list.append(current_type) # <--- QUAN TRỌNG: Để ở đây mới đúng
                     # Logic tách metric cho Test Report
                     if is_normal:
-                        total_dice_norm += d
                         count_norm += 1
+                        total_norm['dice'] += d
+                        total_norm['iou'] += iou
+                        total_norm['sen'] += sen
+                        total_norm['spe'] += spe
+                        total_norm['acc'] += acc
                     else:
-                        total_dice_mass += d
                         count_mass += 1
+                        total_mass['dice'] += d
+                        total_mass['iou'] += iou
+                        total_mass['sen'] += sen
+                        total_mass['spe'] += spe
+                        total_mass['acc'] += acc
                     # --- PHẦN BỔ SUNG: VẼ ẢNH ---
                     if save_visuals:
                         # Lấy tên file gốc
                         file_name = os.path.basename(path)
                         # Prefix NORM/MASS
                         prefix = "NORM" if is_normal else "MASS" # Dùng lại biến is_normal ở trên
-                        save_name = f"pred_{prefix}_Clean_D{d:.2f}_{file_name}"
+                        save_name = f"pred_{prefix}_Clean_D{d:.2f}_S{sen:.2f}_{file_name}"
+                        # save_name = f"pred_{prefix}_Clean_D{d:.2f}_{file_name}"
                         save_full_path = os.path.join(output_dir, save_name)
                         visualize_prediction(
                             img_tensor=images[j],
                             mask_tensor=masks[j],
                             pred_tensor=clean_pred, # <--- Vẽ ảnh đã xóa nhiễu
                             save_path=save_full_path,
-                            iou_score=ious,
+                            iou_score=iou,
                             dice_score=d
                         )
                     # -----------------------------
 
         # Báo cáo kết quả tách biệt
-        avg_dice_mass = total_dice_mass / count_mass if count_mass > 0 else 0.0
-        avg_dice_norm = total_dice_norm / count_norm if count_norm > 0 else 0.0
-        # print(f"\n[TEST RESULT] Avg Hard Dice: {avg_dice:.4f}, Avg Hard IoU: {avg_iou:.4f}")
-        print(f"\n[TEST REPORT (Threshold={PIXEL_THRESHOLD} | MinSize={MIN_OBJECT_SIZE})]")
-        print(f"   - Mass Samples: {count_mass} | Avg Dice: {avg_dice_mass:.4f}")
-        print(f"   - Norm Samples: {count_norm} | Avg Dice: {avg_dice_norm:.4f}") # Chỉ số này nên là 1.0 hoặc gần 1.0
-        return avg_dice_mass, avg_dice_norm, self.dice_list, self.iou_list, self.path_list
+        # --- BÁO CÁO KẾT QUẢ ---
+        def calc_avg(total_dict, count):
+            if count == 0: return {k: 0.0 for k in total_dict}
+            return {k: v / count for k, v in total_dict.items()}
+
+        avg_mass = calc_avg(total_mass, count_mass)
+        avg_norm = calc_avg(total_norm, count_norm)
+
+        print(f"\n{'='*60}")
+        print(f"TEST REPORT (Post-processing min_size={MIN_OBJECT_SIZE})")
+        print(f"{'='*60}")
+        print(f"{'Metric':<10} | {'Mass Cases (Có U)':<20} | {'Normal Cases (Ko U)':<20}")
+        print(f"{'-'*60}")
+        print(f"{'Count':<10} | {count_mass:<20} | {count_norm:<20}")
+        print(f"{'Dice':<10} | {avg_mass['dice']:.4f}{'':<14} | {avg_norm['dice']:.4f}")
+        print(f"{'IoU':<10} | {avg_mass['iou']:.4f}{'':<14} | {avg_norm['iou']:.4f}")
+        print(f"{'Sens':<10} | {avg_mass['sen']:.4f}{'':<14} | {avg_norm['sen']:.4f}")
+        print(f"{'Spec':<10} | {avg_mass['spe']:.4f}{'':<14} | {avg_norm['spe']:.4f}")
+        print(f"{'Acc':<10} | {avg_mass['acc']:.4f}{'':<14} | {avg_norm['acc']:.4f}")
+        print(f"{'='*60}")
+
+        return avg_mass['dice'], avg_norm['dice'], self.dice_list, self.iou_list, self.path_list
 
     def get_metrics(self):
         return {
