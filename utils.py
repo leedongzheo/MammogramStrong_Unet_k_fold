@@ -416,7 +416,32 @@ def unnormalize(img_tensor):
     img = img * std + mean
     img = np.clip(img, 0, 1)
     return img
-
+def calculate_metrics_tensor(pred_tensor, target_tensor):
+    """
+    Tính chỉ số trực tiếp trên PyTorch Tensor (GPU/CPU)
+    Input: 
+        pred_tensor: (H, W) hoặc (1, H, W) - giá trị 0/1
+        target_tensor: (H, W) hoặc (1, H, W) - giá trị 0/1
+    """
+    # Flatten ra 1 chiều để tính cho dễ
+    p = pred_tensor.view(-1)
+    t = target_tensor.view(-1)
+    
+    TP = (p * t).sum()
+    TN = ((1 - p) * (1 - t)).sum()
+    FP = (p * (1 - t)).sum()
+    FN = ((1 - p) * t).sum()
+    
+    epsilon = 1e-6
+    
+    dice = (2. * TP + epsilon) / (2. * TP + FP + FN + epsilon)
+    iou = (TP + epsilon) / (TP + FP + FN + epsilon)
+    sen = (TP + epsilon) / (TP + FN + epsilon)
+    spe = (TN + epsilon) / (TN + FP + epsilon)
+    acc = (TP + TN + epsilon) / (TP + TN + FP + FN + epsilon)
+    
+    # Trả về giá trị Python (float)
+    return dice.item(), iou.item(), sen.item(), spe.item(), acc.item()
 def visualize_prediction(img_tensor, mask_tensor, pred_tensor, save_path, iou_score, dice_score):
     """
     Vẽ ảnh 3 kênh thông minh: Hiển thị kênh CLAHE (Green - Kênh 1) làm background
