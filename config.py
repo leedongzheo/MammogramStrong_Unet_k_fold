@@ -30,6 +30,9 @@ from matplotlib.colors import ListedColormap
 """Phần I: Xét các tham số"""
 # THAM SỐ HẰNG SỐ
 # Đặt seed để đảm bảo tái hiện kết quả
+# ImageNet:
+NORM_MEAN = [0.485, 0.456, 0.406]
+NORM_STD  = [0.229, 0.224, 0.225]
 SEED=42
 torch.manual_seed(SEED)
 # THAM SỐ VỪA LÀ HẰNG SỐ VỪA THAY ĐỔI
