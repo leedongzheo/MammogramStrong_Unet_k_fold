@@ -19,9 +19,7 @@ GLOBAL_MIN_AREA_DEFAULT = 143.5
 # Mean và Std chuẩn cho bộ 3 kênh (Original, CLAHE, Gamma)
 # NORM_MEAN = [0.1608, 0.1751, 0.1216]
 # NORM_STD  = [0.2526, 0.2466, 0.1983]
-# ImageNet:
-NORM_MEAN = [0.485, 0.456, 0.406]
-NORM_STD  = [0.229, 0.224, 0.225]
+
 # --- HELPER FUNCTIONS ---
 def get_clean_breast_mask(image):
     if len(image.shape) == 3:
