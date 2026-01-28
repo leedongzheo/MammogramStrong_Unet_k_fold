@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 import segmentation_models_pytorch as smp
-
+from config import*
 # ==========================================
 # 1. CÁC HÀM TÍNH TOÁN CỐT LÕI (CORE FUNCTIONS)
 # ==========================================
