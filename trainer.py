@@ -358,7 +358,7 @@ class Trainer:
             print(f"[INFO] Saving visualization results to: {output_dir}")
         # Ngưỡng Pixel và Ngưỡng kích thước vùng nhiễu
         PIXEL_THRESHOLD = 0.3  # Độ tin cậy (0-1)
-        MIN_OBJECT_SIZE = 100   # Số pixel tối thiểu để được coi là khối u
+        MIN_OBJECT_SIZE = 400   # Số pixel tối thiểu để được coi là khối u
         EPSILON = 1e-6
         with torch.no_grad():
             test_bar = tqdm(enumerate(test_loader), total=len(test_loader), desc="Testing")
