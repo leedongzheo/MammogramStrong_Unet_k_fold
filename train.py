@@ -70,13 +70,27 @@ def set_grad_status(model, freeze=True):
     else:
         print("[WARNING] Could not find 'backbone' or 'encoder' to freeze!")
 def model_factory(in_channels=3, num_classes=1):
+    # model = smp.UnetPlusPlus(
+    #     encoder_name="tu-resnest50d", 
+    #     encoder_weights=None, # QUAN TRỌNG: Để None cho load nhanh, vì đằng nào cũng load checkpoint đè lên
+    #     in_channels=in_channels,
+    #     classes=num_classes,
+    #     drop_path_rate=0.5
+    # )
     model = smp.UnetPlusPlus(
         encoder_name="tu-resnest50d", 
-        encoder_weights=None, # QUAN TRỌNG: Để None cho load nhanh, vì đằng nào cũng load checkpoint đè lên
-        in_channels=in_channels,
-        classes=num_classes,
+        encoder_weights="imagenet",
+        in_channels=3,
+        classes=1,
+        
+        # --- QUAN TRỌNG: THÊM DÒNG NÀY ĐỂ CÓ ATTENTION ---
+        # scse giúp mô hình vừa lọc không gian (Spatial) vừa lọc kênh (Channel)
+        decoder_attention_type="scse",
+        
+        # --- SỬA LỖI DROP_PATH_RATE ---
+        # Đưa vào encoder_params mới đúng cú pháp
         drop_path_rate=0.5
-    )
+)
     # Thay vì TransUNet (chưa có trong SMP), ta dùng Unet với Encoder là Transformer
 #     model = smp.Unet(
 #         # mit_b3 là backbone của SegFormer, mạnh tương đương ResNet50/101
