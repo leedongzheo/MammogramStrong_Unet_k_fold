@@ -411,8 +411,8 @@ def iou_core_hard(logits, target, threshold=0.5, epsilon=1e-6):
     
 def unnormalize(img_tensor):
     img = img_tensor.cpu().numpy().transpose(1, 2, 0)
-    mean = np.array([0.1608, 0.1751, 0.1216])
-    std = np.array([0.2526, 0.2466, 0.1983])
+    mean = np.array(NORM_MEAN)
+    std = np.array([NORM_STD])
     img = img * std + mean
     img = np.clip(img, 0, 1)
     return img
